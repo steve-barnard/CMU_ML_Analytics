@@ -1,0 +1,115 @@
+---
+title: 'Problem Set 1 Problem # 3'
+author: "Steven M. Barnard"
+date: "September 9, 2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+
+## Loading data
+Loading in the data set and running the initial structure and summary.
+```{r load_data}
+Prob1_df <- read.xlsx(xlsxFile = 'linear_sample.xlsx')
+```
+From the prior model, we already have reviewed the summary and structure of the data as well as the pairs plots.
+
+We transform X4 due to the non-linear relatiopnship of X4 to get the best fit. We also include the squares of the other variables to get a more comprehensive view and to account for any other non-linear relationships.
+```{r}
+Prob1_df <- mutate(Prob1_df, X12 = X1*X1)
+Prob1_df <- mutate(Prob1_df, X22 = X2*X2)
+Prob1_df <- mutate(Prob1_df, X32 = X3*X3)
+Prob1_df <- mutate(Prob1_df, X42 = X4*X4)
+Prob1_df <- mutate(Prob1_df, X52 = X5*X5)
+Prob1_df <- mutate(Prob1_df, X62 = X6*X6)
+Prob1_df <- mutate(Prob1_df, X72 = X7*X7)
+Prob1_df <- mutate(Prob1_df, X82 = X8*X8)
+Prob1_df <- mutate(Prob1_df, X92 = X9*X9)
+Prob1_df <- mutate(Prob1_df, X13 = X1*X1*X1)
+Prob1_df <- mutate(Prob1_df, X23 = X2*X2*X2)
+Prob1_df <- mutate(Prob1_df, X33 = X3*X3*X3)
+Prob1_df <- mutate(Prob1_df, X43 = X4*X4*X4)
+Prob1_df <- mutate(Prob1_df, X53 = X5*X5*X5)
+Prob1_df <- mutate(Prob1_df, X63 = X6*X6*X6)
+Prob1_df <- mutate(Prob1_df, X73 = X7*X7*X7)
+Prob1_df <- mutate(Prob1_df, X83 = X8*X8*X8)
+Prob1_df <- mutate(Prob1_df, X93 = X9*X9*X9)
+```
+
+# Fit the data to a ridge regression.
+
+glmnet needs x matrix and y vector.
+```{r}
+x <- model.matrix(Y ~ ., Prob1_df)[,-1]
+
+y <- Prob1_df$Y
+```
+
+lambda tuning parameter
+```{r}
+lambda <- 10^seq(10, -5, length = 120)
+```
+
+# Lasso Regression
+```{r}
+lasso_fit = glmnet(x,y,alpha = 1)
+plot(lasso_fit, label = TRUE)
+```
+Cross validate to determine optimal lambda.
+```{r}
+cv.out.lasso <- cv.glmnet(x , y , alpha = 1, nfolds = 10, lambda = lambda)
+
+plot(cv.out.lasso)
+```
+
+ow we determine the MSE for the lowest lambda, the 1se lambda, and the linear model.
+1) using the min.
+```{r}
+bestlam <- cv.out.lasso$lambda.min
+lasso.pred <- predict(cv.out.lasso, s = bestlam, newx = x)
+mean((lasso.pred - y)^2)
+```
+
+2) using the 1se lambda
+```{r}
+bestlam <- cv.out.lasso$lambda.1se
+lasso.pred <- predict(cv.out.lasso, s = bestlam, newx = x)
+mean((lasso.pred-y)^2)
+```
+
+3) using the MSE from our initial fitted lm = Avg Sqrd error from the linear model is ~32.44.
+
+now save the coefficients from the 1 standard error(deviation).
+```{r}
+lasso_fit <- glmnet(x,y,alpha=1, lambda = bestlam)
+lasso.coef <- predict(lasso_fit, type = 'coefficients' , s = bestlam)[1:28,]
+lasso.coef
+```
+X1,2,3,4,6,12,22,32,52,62,72,82,92 and all the cubed features were dropped, which agrees closely with our feature selection findings from the linear model. (just added the cubed terms to check how lasso would respond)
+
+Now run diagnostic plots on the lasso regression model.
+```{r}
+plotres(lasso_fit, which = 3:4, w1.xvar='norm', predict.s = bestlam)
+```

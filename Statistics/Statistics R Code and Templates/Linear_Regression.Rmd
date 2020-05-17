@@ -1,0 +1,151 @@
+---
+title: "Linear Regression"
+author: "Fallaw Sowell"
+date: "August 20, 2018"
+output:
+    pdf_document:
+    toc: true
+    number_sections: true
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents 
+\newpage
+
+## Linear Regression Example 
+
+This file was created with R markdown and Knit.  This demonstrates how to read in a data file, obtain summary statistics, run a linear regression model and finally report diagnostic plots.    
+
+### Load the needed libraries
+
+```{r load libraries, message=FALSE, warning=FALSE}
+
+rm(list=ls())
+
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+```
+
+### Load the data into R
+
+First, read the data from the excel file and save as a data.frame.   This excel file needs to be in the R working directory.   Alternatively, you would need to include the path the excel file.  
+
+This data is from an insurance company that is trying to understand why different charges occur for different customers.   We have the annual charges for the policy.  We have the sex, age, BMI, smoking status, and region of residence for the person who owns the policy.  We also have the number of children covered by the policy.   
+
+```{r Read the data, echo=TRUE }
+Health_care_df <- read.xlsx(xlsxFile = "Insurance.xlsx")
+```
+
+###  Get familiar with your data, variables, size, etc. 
+
+It is good practice to review the data by looking at its structure.  
+
+```{r Look at the structure of the data.frame}
+str(Health_care_df)
+```
+
+###  Transform the data as needed
+
+Note that the sex, smoker, and regions variables are listed as characters variables.  For us to use them in our analysis we need to convert them to factor variables. 
+
+```{r converte character variables to factors}
+Health_care_df$sex = as.factor(Health_care_df$sex)
+Health_care_df$smoker = as.factor(Health_care_df$smoker)
+Health_care_df$region = as.factor(Health_care_df$region)
+```
+
+### Learn about the data set with Summary statistics and plots
+
+Get familiar with the data. Look at some summary statistics for the variables.
+
+```{r summary statistics}
+summary(Health_care_df)
+```
+
+We are interested in the relationships in the entire data set.  Two nice functions that achieve this are "pairs"" from the base graphics package and "GGally::ggpairs"" from the GGally and ggplot2 packages. 
+
+```{r pairs summary of the data}
+pairs(Health_care_df)
+```
+
+
+```{r GGally_ggpairs, message=FALSE, warning=FALSE}
+GGally::ggpairs(Health_care_df)
+```
+
+### Fit a Linear Regression model explain the annual charges
+
+Now fit the linear regression model using the lm function.  
+
+```{r fitting the linear regression}
+lm_fit =lm(charges ~ age + sex + bmi + smoker + children + region, Health_care_df)
+#
+#  A shorter way to include all the variables is
+#
+# lm_fit = lm(charges ~ ., Health_care_df)
+#
+```
+
+The output from the lm function can be viewed with the summary command. 
+```{r summarize lm output}
+summary(lm_fit)
+```
+The beta coefficient on the sexmale variable is not significant and can be dropped from the model.
+
+```{r drop sexmale}
+lm_fit =lm(charges ~ age + bmi + smoker + children + region, Health_care_df)
+summary(lm_fit)
+```
+
+### Diagnostic plots to judge the model's fit
+
+Now consider some diagnotic to judge how well the model summarizing the data.
+
+#### Residuals Histogram 
+
+First consider the histogram plot of the residuals.  This is to help judge if the errors are normally distributed.
+```{r residual histogram, message=FALSE, warning=FALSE}
+resid_hist <- ggplot(data = lm_fit, aes(x=.resid)) + geom_histogram()
+resid_hist
+```
+
+Note the long upper tail.  This suggests  nonnormal errors. 
+
+#### Residuals qq-plot
+
+Next consider the qq-plot to again judge the normality of the errors. 
+
+```{r qq-plot of the residuals}
+resid_qqplot <- ggplot(dat = lm_fit, aes(sample=.stdresid)) + stat_qq() + geom_abline()
+resid_qqplot
+```
+The qq-plot is not linear.  Again, this demonstrates that the errors are not normally distributed.  
+
+#### Residuals versus Fitted scatterplot
+
+
+Finally, plot the residuals against the fitted values to see if there is additional structure in the not captured by the model. 
+
+```{r rediduals versus fitted}
+resid_fitted <- ggplot(data = lm_fit, aes(x=.fitted, y=.resid)) + geom_point() +
+              labs(x="Fitted Values", y="Residuals")
+resid_fitted
+```
+
+
+The scatter plot does not look anything like a nice data cloud.  There is structure all over the place.    
+
+We should not conclude that this model captures the structure represented in the data.   

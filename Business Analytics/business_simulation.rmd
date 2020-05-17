@@ -1,0 +1,142 @@
+---
+title: "Business Regression"
+author: "Steven M. Barnard"
+date: "September 12, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+
+Goal of this is to create a linear regression that helps determine what variables are meaningful for each product(watches) in total and in their respective markets.
+
+## Game tips/info
+Company is based in the US.
+
+We produce 2 brands of watches.
+
+We sell them in 6 countries: 
+- US
+- China
+- UK
+- Germany
+- Japan
+- Mexico
+
+What we need to monitor:
+- competition
+- cust. pref.
+- how we monitor our actions and our competitors
+
+# Factories:
+
+Each makes only 1 product (can be 1 or 2 but not both)
+You can increase/decrease facotry size.
+Both can be in the same country.
+Coutry location affects quality.
+
+You can produce and market 1 type of watch if you want. You dont need to produce and market 2 products.
+
+# Product design:
+
+Product 1: 
+- more price sensitive
+- low product loyalty
+- will buy from competitors if you 'stock out'
+
+Product 2:
+- premium product
+- faced with 'stock out' customers buy nothing and wait.
+
+Product 2 and 1 are independent. (models need otbe run separately)
+
+Customer preferences are independent per country. (separate model set up for each country)
+
+# Market Design:
+Customer preference generalizations will hold true.
+Affluent countries have less price sensitive consumers.
+
+Variables that affect decisions:
+- price
+- unit sales
+- demand
+- tariff rates
+- transport rates/capacity
+- green spend
+- market spend (consualtants and actual marketing)
+- currency exchange
+- mfg cost
+
+** early payment discount 0-2%
+
+** Customer preferences are more important than factory location
+
+
+
+# Loading the data
+First the data base needs to be completed by gathering the necessary data from the current excel spreadsheet via the tabulate sheet and creating a new excel file to act as the database.
+
+This database will have to be updated every week.
+
+```{r}
+#getwd() to check working directory if needed
+JP1_df <- read.xlsx(xlsxFile = 'japanP1.xlsx')
+
+```
+
+```{r}
+str(JP1_df)
+summary(JP1_df)
+```
+MS = market spend %
+```{r}
+pairs(JP1_df)
+GGally::ggpairs(JP1_df)
+```
+
+# Fitting the linear model
+```{r}
+lm_fit = lm(MktShr ~ . - RQ, JP1_df)
+```
+
+```{r}
+summary(lm_fit)
+```
+
+```{r}
+resid_fitted <- ggplot(data = lm_fit, aes(x= .fitted, y= .resid)) + geom_point() + labs(x= "Fitted Values" , y= "Residuals")
+resid_fitted
+```
+
+```{r}
+plot(JP1_df$MyG, resid(lm_fit))
+plot(JP1_df$AvgG, resid(lm_fit))
+plot(JP1_df$RP, resid(lm_fit))
+plot(JP1_df$RQ, resid(lm_fit))
+plot(JP1_df$MS, resid(lm_fit))
+plot(JP1_df$price, resid(lm_fit))
+plot(JP1_df$LQ1, resid(lm_fit))
+plot(JP1_df$LQ2, resid(lm_fit))
+plot(JP1_df$LQ3, resid(lm_fit))
+plot(JP1_df$mg1, resid(lm_fit))
+plot(JP1_df$mg2, resid(lm_fit))
+plot(JP1_df$mg3, resid(lm_fit))
+```

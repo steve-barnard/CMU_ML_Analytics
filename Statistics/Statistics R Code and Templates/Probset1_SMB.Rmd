@@ -1,0 +1,155 @@
+---
+title: "Problem Set 1 46-883"
+author: "Steven M. Barnard"
+date: "September 9, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+
+## Loading data
+Loading in the data set and running the initial structure and summary.
+```{r load_data}
+Prob1_df <- read.xlsx(xlsxFile = 'linear_sample.xlsx')
+```
+
+Viewing the structure and summary of the data to review the transformations of data needed if any.
+```{r}
+str(Prob1_df)
+
+summary(Prob1_df)
+```
+
+There are 9 X predictors and 1 response variable Y.
+
+Lets take a look at the relationships using pairs and the ggpairs/ggally pairs diagnostic plots.
+```{r}
+pairs(Prob1_df)
+```
+Right away X2 and X5 show a large amount of collinearity. X4 seems to have soem heavy clustering near 0 for all variables and also the most pronounced outliers when plotted against other predictors, X7 appears to show this trend as well, but to a lesser extent; this could also indicate additional collinearity.
+
+Possible variables with collinearity at initial glance =  X2:X5 and X4:X7.
+
+Now for the ggpairs/ggally
+```{r}
+GGally::ggpairs(Prob1_df)
+```
+It appears that X5 and X9 have the highest positive correlation with Y. These may indicate good potential predictors of our response. I would anticipate these having a higher than average significance.
+
+# Fitting the linear model to the data
+Now We can fit the linear model to the data with all variables included and view the summary.
+```{r}
+lm_fit <- lm(Y ~ ., Prob1_df)
+summary(lm_fit)
+```
+Now X2 shows as the least significant. It also has a SE near that of X5, however X5's t-stat is larger and therefore shows to be slightly more significant.
+Diagnostic plots to check for fit
+```{r}
+resid_hist <- ggplot(data = lm_fit, aes(x= .resid)) + geom_histogram()
+resid_hist
+```
+The initial residual plot histogram shows there are non-normal errors with the long tail. Possible Log(y) transformation may help with this.
+
+Residuals with a qqplot prior to any transformations or removal of factors.
+```{r}
+resid_qqplot <- ggplot( data = lm_fit, aes(sample = .stdresid)) + stat_qq() + geom_abline()
+resid_qqplot
+```
+The line does not approximate the abline very well, again another indicator of non-normal errors.
+
+Now, we fit the residuals to a scatterplot.
+```{r}
+resid_fitted <- ggplot(data = lm_fit, aes(x= .fitted, y= .resid)) + geom_point() + labs(x= "Fitted Values" , y= "Residuals")
+resid_fitted
+```
+The scatterplot of the residuals is not terrible, but it is not great. There are a large amount of outliers and its not as closely grouped and elliptical as we would like it to be.
+
+#Removing X2 to see if ther is an improved model fit
+```{r}
+lm_fit <- lm(Y ~ .-X2, Prob1_df)
+summary(lm_fit)
+```
+The model slightly improved and X5 is now much more significant after the removal of the collinear companion X2.
+
+Now we can dig deeper by plotting the residuals against our remaining predictors to attempt to identify any non-linear relationships that may help us better understand our data.
+
+```{r}
+plot(Prob1_df$X1, resid(lm_fit))
+plot(Prob1_df$X3, resid(lm_fit))
+plot(Prob1_df$X4, resid(lm_fit))
+plot(Prob1_df$X5, resid(lm_fit))
+plot(Prob1_df$X6, resid(lm_fit))
+plot(Prob1_df$X7, resid(lm_fit))
+plot(Prob1_df$X8, resid(lm_fit))
+plot(Prob1_df$X9, resid(lm_fit))
+```
+The X4 plot appears to show a non-linear relationship when revieiwng the plot of X4 against the residuals.
+
+Nearly all the plots have the bulk of residuals at the bottom and some incredibly high residuals scattered throughout. 
+
+These peaks could be due to the response variable needing to be transformed or are simply due to missing a variabel to explain them.
+
+# Transforming X4
+```{r}
+Prob1_df <- mutate(Prob1_df, X42 = X4*X4)
+```
+
+```{r}
+lm_fit <- lm(Y ~ .-X2, Prob1_df)
+summary(lm_fit)
+```
+X42 is significant and due to this, X4 remains in the model.
+The model has now increased the adjusted R-squared value to 0.8345, a significant improvement. (up from ~0.46)
+
+The residual plots are run again to see if tehre have been any changes in fit.
+```{r}
+plot(Prob1_df$X1, resid(lm_fit))
+plot(Prob1_df$X3, resid(lm_fit))
+plot(Prob1_df$X4, resid(lm_fit))
+plot(Prob1_df$X5, resid(lm_fit))
+plot(Prob1_df$X6, resid(lm_fit))
+plot(Prob1_df$X7, resid(lm_fit))
+plot(Prob1_df$X8, resid(lm_fit))
+plot(Prob1_df$X9, resid(lm_fit))
+plot(Prob1_df$X42, resid(lm_fit))
+```
+X4 has a significant improvement, however with the new changes X8 seems to have a characteristic 'X' shape for the residuals vs. fitted plot.
+
+Residuals with a qqplot w/current transformations and factor removal.
+```{r}
+resid_qqplot <- ggplot( data = lm_fit, aes(sample = .stdresid)) + stat_qq() + geom_abline()
+resid_qqplot
+```
+Again a decent improvement over the initial qqplot.
+
+# Transforming X8
+```{r}
+#Prob1_df <- mutate(Prob1_df, X8N = X8*X8)
+```
+Attempted to transform X8 but I was unable to find a transformation that improved the fit of the modela nd soome transformations ended up producing NaN errors. I beleive that to improve the model further in regards to X8 there would have to be a variable identified that is missing.
+
+```{r}
+lm_fit <- lm(Y ~ .-X2, Prob1_df)
+summary(lm_fit)
+```
+This appears to be the best linear model with an Adjusted R-squared value of 0.8345.

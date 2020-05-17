@@ -1,0 +1,287 @@
+---
+title: "Customer Preferences"
+author: "Steven Barnard"
+date: "September 7, 2018"
+output:
+  pdf_document: null
+  number_sections: yes
+  html_document:
+    df_print: paged
+  toc: yes
+  toc_depth: 4
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents 
+\newpage
+
+### Load the needed libraries
+
+```{r load libraries, message=FALSE, warning=FALSE}
+
+rm(list=ls())
+
+if (!require('devtools')) install.packages('devtools')
+library('devtools')
+
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+```
+
+### Load the data into R
+
+This data is trying to understand the customer preferences for the management game simulation.      
+
+```{r Read the data, echo=TRUE }
+SimData_df <- read.xlsx(xlsxFile = "CustPref_RawData(R).xlsx", sheet = 'MkRawData')
+SimData_df <- as_data_frame(SimData_df)
+```
+
+###  Reviewing structure of source data  
+
+```{r Look at the structure of the data.frame}
+#str(SimData_df)
+```
+
+###  Transform the data as needed
+
+
+```{r data transformation section}
+
+SimData_df$Country = as.factor(SimData_df$Country)
+#HW1_df <-mutate(HW1_df, X4_2 = X4*X4)
+#str(SimData_df)
+```
+
+###  Segregate Data by Country and by Product before running regressions
+
+
+```{r data segregation}
+
+JP1_df <- filter(SimData_df,Country == "Japan", Product == "1", Time.Period >= 4)
+MX1_df <- filter(SimData_df,Country == "Mexico", Product == "1", Time.Period >= 4)
+CN1_df <- filter(SimData_df,Country == "China", Product == "1", Time.Period >= 4)
+UK1_df <- filter(SimData_df,Country == "U.K.", Product == "1", Time.Period >= 4)
+GR1_df <- filter(SimData_df,Country == "Germany", Product == "1", Time.Period >= 4)
+US1_df <- filter(SimData_df,Country == "U.S.", Product == "1", Time.Period >= 4)
+
+JP2_df <- filter(SimData_df,Country == "Japan", Product == "2", Time.Period >= 4)
+MX2_df <- filter(SimData_df,Country == "Mexico", Product == "2", Time.Period >= 4)
+CN2_df <- filter(SimData_df,Country == "China", Product == "2", Time.Period >= 4)
+UK2_df <- filter(SimData_df,Country == "U.K.", Product == "2", Time.Period >= 4)
+GR2_df <- filter(SimData_df,Country == "Germany", Product == "2", Time.Period >= 4)
+US2_df <- filter(SimData_df,Country == "U.S.", Product == "2", Time.Period >= 4)
+
+```
+### Learn about the data set with Summary statistics and plots
+
+Summary statistics review for the variables to get familiarized with the data. 
+
+```{r summary statistics}
+#summary(JP1_df)
+
+```
+
+### Reviewing general relationships in the entire data set.  Using "pairs"" function from the base graphics package and "GGally::ggpairs"" from the GGally and ggplot2 packages. 
+
+```{r pairs summary of the data}
+#pairs(JP1Data)
+```
+
+```{r GGally_ggpairs, message=FALSE, warning=FALSE}
+#GGally::ggpairs(JP1Data)
+```
+
+### Fit a Linear Regression model explain the annual charges
+
+Now fit the linear regression model using the lm function.  
+
+```{r fitting the linear regression}
+
+
+
+```
+
+# JAPAN_1
+```{r summarize JP1_fit output}
+JP1_fit =lm(MktShare ~ . , data = select(JP1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(JP1_fit)
+JP1_fit =lm(MktShare ~ . -L2_RelQuality -RelQuality -L3_RelGreen -RelGreen -L3_RelQuality -L3_RelBrandMkt -L2_RelGreen, 
+            data = select(JP1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(JP1_fit)
+
+#ggplot(JP1_fit, aes(x = RelPrice, y = MktShare)) + geom_point() + stat_smooth(method = "lm", col = "red")
+#ols.coef = JP1_df$coefficients
+```
+# MEXICO_1
+```{r summarize JP1_fit output}
+MX1_fit =lm(MktShare ~ . , data = select(MX1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(MX1_fit)
+MX1_fit =lm(MktShare ~ . -L3_RelGreen -RelGreen -RelQuality -L2_RelQuality -L3_RelQuality -L2_RelGreen -L3_RelBrandMkt, 
+            data = select(MX1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(MX1_fit)
+```
+# CHINA_1
+```{r summarize JP1_fit output}
+CN1_fit =lm(MktShare ~ . , data = select(CN1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(CN1_fit)
+CN1_fit =lm(MktShare ~ . -L3_RelBrandMkt -L3_RelBrandMkt -L2_RelQuality -L3_RelGreen -L3_RelQuality -L2_RelGreen -RelGreen -RelQuality, 
+            data = select(CN1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(CN1_fit)
+```
+# UK_1
+```{r summarize JP1_fit output}
+UK1_fit =lm(MktShare ~ . , data = select(UK1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(UK1_fit)
+UK1_fit =lm(MktShare ~ . -L2_RelGreen -L3_RelQuality -RelGreen -L2_RelQuality -L3_RelBrandMkt -RelQuality -L3_RelGreen, 
+            data = select(UK1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(UK1_fit)
+```
+
+# GR_1
+```{r summarize JP1_fit output}
+GR1_fit =lm(MktShare ~ . , data = select(GR1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(GR1_fit)
+GR1_fit =lm(MktShare ~ . -L2_RelGreen -RelQuality -RelGreen -L3_RelQuality -L3_RelBrandMkt -L2_RelQuality -L3_RelGreen, 
+            data = select(GR1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(GR1_fit)
+```
+
+# US_1
+```{r summarize JP1_fit output}
+US1_fit =lm(MktShare ~ . , data = select(US1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(US1_fit)
+US1_fit =lm(MktShare ~ . -L2_RelGreen -RelQuality -L2_RelQuality -RelGreen -L3_RelQuality, 
+            data = select(US1_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(US1_fit)
+```
+
+# JAPAN_2
+```{r summarize JP1_fit output}
+JP2_fit =lm(MktShare ~ . , data = select(JP2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(JP2_fit)
+JP2_fit =lm(MktShare ~ . -L1_RelBrandMkt -L1_RelQuality -L2_RelQuality -L3_RelQuality -L3_RelGreen -L2_RelGreen -RelGreen -L3_RelBrandMkt, 
+            data = select(JP2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(JP2_fit)
+```
+
+# MEXICO_2
+```{r summarize JP1_fit output}
+MX2_fit =lm(MktShare ~ . , data = select(MX2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(MX2_fit)
+MX2_fit =lm(MktShare ~ . -L3_RelBrandMkt -L2_RelGreen -L2_RelQuality -L3_RelGreen -RelGreen -RelQuality -L3_RelQuality, 
+            data = select(MX2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(MX2_fit)
+```
+
+# CHINA_2
+```{r summarize JP1_fit output}
+CN2_fit =lm(MktShare ~ . , data = select(CN2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(CN2_fit)
+CN2_fit =lm(MktShare ~ . -L1_RelQuality -L2_RelGreen -L2_RelQuality -L3_RelGreen -RelGreen -L3_RelQuality -L3_RelBrandMkt, 
+            data = select(CN2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(CN2_fit)
+```
+
+# UK_2
+```{r summarize JP1_fit output}
+UK2_fit =lm(MktShare ~ . , data = select(UK2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(UK2_fit)
+UK2_fit =lm(MktShare ~ .  -RelQuality -L2_RelQuality -L3_RelQuality -L2_RelGreen -RelGreen -L3_RelGreen -L3_RelBrandMkt, 
+            data = select(UK2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(UK2_fit)
+```
+
+# GR_2
+```{r summarize JP1_fit output}
+GR2_fit =lm(MktShare ~ . , data = select(GR2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(GR2_fit)
+GR2_fit =lm(MktShare ~ . -L2_RelQuality -L2_RelGreen -L3_RelQuality -RelGreen -RelQuality, 
+            data = select(GR2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(GR2_fit)
+```
+
+# US_2
+```{r summarize JP1_fit output}
+US2_fit =lm(MktShare ~ . , data = select(US2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(US2_fit)
+US2_fit =lm(MktShare ~ . -RelQuality -L3_RelQuality -L3_RelGreen -L2_RelQuality -L3_RelBrandMkt, 
+            data = select(US2_df, -Country, -Product, -Time.Period, -AbsGreen, -AvgGreen, -RelBrandMkt))
+summary(US2_fit)
+```
+
+#### Residuals Histogram 
+
+First consider the histogram plot of the residuals.  This is to help judge if the errors are normally distributed.
+```{r write to file}
+
+write.xlsx(JP1_fit, file = "JP1_fit.xlsx", sheetName = "JP1_fit", row.names=FALSE)
+write.xlsx(MX1_fit, file = "MX1_fit.xlsx", sheetName = "MX1_fit", append=TRUE, row.names=FALSE)
+write.xlsx(CN1_fit, file = "CN1_fit.xlsx", sheetName = "CN1_fit", append=TRUE, row.names=FALSE)
+write.xlsx(UK1_fit, file = "UK1_fit.xlsx", sheetName = "UK1_fit", append=TRUE, row.names=FALSE)
+write.xlsx(GR1_fit, file = "GR1_fit.xlsx", sheetName = "GR1_fit", append=TRUE, row.names=FALSE)
+write.xlsx(US1_fit, file = "US1_fit.xlsx", sheetName = "US1_fit", append=TRUE, row.names=FALSE)
+
+write.xlsx(JP2_fit, file = "JP2_fit.xlsx", sheetName = "JP2_fit", append=TRUE, row.names=FALSE)
+write.xlsx(MX2_fit, file = "MX2_fit.xlsx", sheetName = "JMX_fit", append=TRUE, row.names=FALSE)
+write.xlsx(CN2_fit, file = "CN2_fit.xlsx", sheetName = "CN2_fit", append=TRUE, row.names=FALSE)
+write.xlsx(UK2_fit, file = "UK2_fit.xlsx", sheetName = "UK2_fit", append=TRUE, row.names=FALSE)
+write.xlsx(GR2_fit, file = "GR2_fit.xlsx", sheetName = "GR2_fit", append=TRUE, row.names=FALSE)
+write.xlsx(US2_fit, file = "US2_fit.xlsx", sheetName = "US2_fit", append=TRUE, row.names=FALSE)
+```
+
+### Diagnostic plots to judge the model's fit
+
+Now consider some diagnostic to judge how well the model summarizing the data.
+
+#### Residuals Histogram 
+
+First consider the histogram plot of the residuals.  This is to help judge if the errors are normally distributed.
+```{r residual histogram, message=FALSE, warning=FALSE}
+#resid_hist <- ggplot(data = lm_fit, aes(x=.resid)) + geom_histogram()
+#resid_hist
+```
+
+Note the long upper tail.  This suggests  nonnormal errors. 
+
+#### Residuals qq-plot
+
+Next consider the qq-plot to again judge the normality of the errors. 
+
+```{r qq-plot of the residuals}
+#resid_qqplot <- ggplot(dat = lm_fit, aes(sample=.stdresid)) + stat_qq() + geom_abline()
+#resid_qqplot
+```
+The qq-plot is not linear.  Again, this demonstrates the errors are not normally distributed.  
+
+#### Residuals versus Fitted scatterplot
+
+Finally, plot the residuals against the fitted values to see if there is additional structure in the not captured by the model. 
+
+```{r rediduals versus fitted}
+#resid_fitted <- ggplot(data = lm_fit, aes(x=.fitted, y=.resid)) + geom_point() +
+#             labs(x="Fitted Values", y="Residuals")
+#resid_fitted
+
+```

@@ -1,0 +1,183 @@
+---
+title: "MLE_Normal_distribution"
+author: "Fallaw Sowell"
+date: "August 29, 2018"
+output:
+  pdf_document: null
+  number_sections: yes
+  html_document:
+    df_print: paged
+  toc: yes
+  toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Program Description
+
+This program perform maximum likelihood estimation
+for a normal likelihood function.  The log-likelihood
+function is maximized numerically.
+Analytical and numerical second derivatives are compared.
+
+```{r cleanup}
+rm(list = ls())
+```
+
+## Load Packages
+
+Load Packages and Set Options
+
+```{r packages}
+if (!require('openxlsx'))
+  install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('ggplot2'))
+  install.packages('ggplot2')
+library('ggplot2')
+```
+
+## User Defined Functions
+
+
+This is the code that evaluates the normal log-likelihood function
+
+```{r Normal_log_likelihood}
+Normal_log_like <- function(the_parameters, the_data) {
+  # Computes the log-likelihood function for a normal distribution
+  #
+  # Args:
+  #   the_parameters: First the mean and then the standard deviation.
+  #   the_data: A column matrix of the data.
+  #
+  # Returns:
+  #   The log-likelihood function evaluated at the parameters.
+  mu <- the_parameters[1]
+  sigma  <- the_parameters[2]
+  x <- the_data
+  N <- length(x)
+  
+  log_like <- (-(N / 2) * log(2 * pi)
+               - N * log(sigma)
+               - (1 / (2 * sigma * sigma)) * (sum(x ^ 2) - 2 * mu * sum(x) + N * mu * mu))
+  return(-log_like)
+}
+```
+
+Next is the user defined function that calculates the second derivative of the 
+normal log-likelihood function.
+
+```{r Hessian_function}
+Hessian_Normal_log_like <- function(the_parameters, the_data) {
+  # Computes the second derivative of a normal log-likelihood function
+  #
+  # Args:
+  #   the_parameters: First the mean and then the standard deviation.
+  #   the_data: A column matrix of the data.
+  #
+  # Returns:
+  #   The 2x2 matrix of second derivatives evaluated at the given parameters.
+  mu <- the_parameters[1]
+  sigma  <- the_parameters[2]
+  x <- the_data
+  N <- length(x)
+  D_mu2 <- -N / (sigma ^ 2)
+  D_sigma2 <- (N / (sigma ^ 2)
+               - (3 / (sigma ^ 4)) * (sum(x ^ 2) - 2 * mu * sum(x) + N * mu * mu))
+  D_mu_sigma <- -(2 / (sigma ^ 3)) * (sum(x) - N * mu)
+  H <- matrix(c(D_mu2, D_mu_sigma, D_mu_sigma, D_sigma2), ncol = 2)
+  return(H)
+}
+```
+
+
+## Data Summary
+```{r read_data}
+Normal_df <-
+  read.xlsx(xlsxFile = "MLE_data_set_normal.xlsx", sheet = "Normal")
+X <- as.matrix(Normal_df[1])
+N <- length(X)
+```
+
+
+It is nice to learn about your data with a plot and summary statistics
+
+```{r summary_and_plot, message=FALSE, warning=FALSE}
+summary(Normal_df)
+
+g <- ggplot(Normal_df, aes(x = X)) + geom_histogram()
+g
+```
+
+## Estimation and Confidence Intervals
+
+Use the R function optim() to minimize the log-likelihood function.  We must set the start values for the numerical hill-climber.  
+
+```{r Maximize_the_log_like}
+start_values = c(1.2, 1.8)
+
+optout_normal <-
+  optim(
+    start_values,
+    Normal_log_like,
+    control = list(
+      maxit = 500,
+      abstol = .00000001,
+      reltol = .00000001
+    ),
+    the_data = X
+  )
+optout_normal
+```
+
+
+```{r Calculate_Covarinace}
+the_covariance <-
+  solve(-Hessian_Normal_log_like(optout_normal$par , X) / N) / N
+the_covariance
+```
+
+Now calculate and print the 95% confidence intervals for the parameters.  
+
+```{r confidence_intervals}
+print(c(
+  optout_normal$par[1] - 2 * sqrt(the_covariance[1, 1]),
+  optout_normal$par[1] + 2 * sqrt(the_covariance[1, 1])
+))
+
+print(c(
+  optout_normal$par[2] - 2 * sqrt(the_covariance[2, 2]),
+  optout_normal$par[2] + 2 * sqrt(the_covariance[2, 2])
+))
+```
+
+## Compare Analytical and Numerical Second Derivatives
+
+First print the analytical second derivatives.  Then, using a delta of .001, numerically approximate the second derivatives.  The numerical values are then
+displayed so they can be compared to the analytical second derivatives. 
+
+```{r Numerical_Second_derivative}
+
+Hessian_Normal_log_like(optout_normal$par , X)
+
+delta <- .001
+Num_H11 <- -(
+  Normal_log_like(optout_normal$par - c(delta, 0), X)
+  - 2 * Normal_log_like(optout_normal$par, X)
+  + Normal_log_like(optout_normal$par + c(delta, 0), X)
+) / (delta * delta)
+
+Num_H22 = -(
+  Normal_log_like(optout_normal$par - c(0, delta), X)
+  - 2 * Normal_log_like(optout_normal$par, X)
+  + Normal_log_like(optout_normal$par + c(0, delta), X)
+) / (delta * delta)
+
+Num_H11
+Num_H22
+```
+
+

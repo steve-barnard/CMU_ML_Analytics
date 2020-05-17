@@ -1,0 +1,214 @@
+---
+title: "Week 1 - Problem Set"
+author: "Steven M. Barnard"
+date: "September 9, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Problem Set 1
+
+## Load Libraries
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+## Loading data
+Loading in the data set and running the initial structure and summary.
+```{r load_data}
+Prob1_df <- read.xlsx(xlsxFile = 'Insurance.xlsx')
+```
+Data structure
+```{r}
+str(Prob1_df)
+```
+Transform data from obj/characters into factor variables
+```{r}
+Prob1_df$sex = as.factor(Prob1_df$sex)
+Prob1_df$smoker = as.factor(Prob1_df$smoker)
+Prob1_df$region = as.factor(Prob1_df$region)
+
+Prob1_df <- filter(Prob1_df, age > 3 + charges/300 )
+
+Prob1_df <- mutate(Prob1_df, charges = log(charges))
+Prob1_df <- mutate(Prob1_df, age2 = age*age)
+
+Prob1_df <- subset(Prob1_df, select = c(1:4, 6:8))
+
+```
+
+Data Summary
+```{r}
+summary(Prob1_df)
+```
+
+plot relationships
+```{r}
+pairs(Prob1_df)
+```
+
+```{r}
+GGally::ggpairs(Prob1_df)
+```
+
+# Observations for exploration
+Charges and age as well as charges and bmi seem to have some odd trends. Charges and age seem to have 3 distinct groups and charges and bmi have 2 could groupings. Also note smokers make up almost exclusively charges over 20k.
+
+# Fitting the linear model
+```{r}
+lm_fit = lm(charges ~ .-bmi, Prob1_df)
+```
+
+```{r}
+summary(lm_fit)
+```
+Diagnostic plots to check for fit
+```{r}
+resid_hist <- ggplot(data = lm_fit, aes(x= .resid)) + geom_histogram()
+resid_hist
+```
+Note the extended tail, this is an indication of nonnormal errors.
+
+Residuals with a qqplot
+```{r}
+resid_qqplot <- ggplot( data = lm_fit, aes(sample = .stdresid)) + stat_qq() + geom_abline()
+resid_qqplot
+```
+Errors are not normally distributed or they would be more in line with the 1/1 line.
+
+Now, we fit the residuals to a scatterplot.
+```{r}
+resid_fitted <- ggplot(data = lm_fit, aes(x= .fitted, y= .resid)) + geom_point() + labs(x= "Fitted Values" , y= "Residuals")
+resid_fitted
+```
+
+```{r}
+resid_var <- ggplot(data = lm_fit, aes(x= charges, y= age)) + geom_point() + labs(x= "$" , y= "age")
+resid_var
+```
+
+# Ridge and Lasso sections
+glmnet needs x matrix and y vector.
+```{r}
+x <- model.matrix(charges ~ ., Prob1_df)[,-1]
+
+y <- Prob1_df$charges
+```
+
+lambda tuning parameter
+```{r}
+lambda <- 10^seq(10, -5, length = 120)
+```
+
+Ridge regression
+```{r}
+ridge_fit = glmnet(x,y,alpha=0)
+plot(ridge_fit, label = TRUE)
+```
+# cross validation
+CV to select the optimal lambda. Value of 0 for lambda meanas we put all the weight int he L2 norm (ridge). A value of 1 means we put all the weight in the L1 Norm (lasso).
+```{r}
+cv.out.ridge <- cv.glmnet(x , y , alpha = 0, nfolds = 10, lambda = lambda)
+
+plot(cv.out.ridge)
+```
+
+Using min lambda to determine the avg sqrd error
+```{r}
+bestlamda <- cv.out.ridge$lambda.min
+ridge.pred <- predict(cv.out.ridge, s = bestlamda, newx = x)
+mean((ridge.pred - y)^2)
+```
+Now we update our best lambda witht he lambda 1 standard deviation away.
+```{r}
+bestlamda <- cv.out.ridge$lambda.1se
+ridge.pred <- predict(cv.out.ridge, s = bestlamda, newx = x)
+mean((ridge.pred - y)^2)
+```
+```{r}
+s.pred <- predict(lm_fit, newdata = Prob1_df)
+mean((s.pred - y)^2)
+```
+
+Now we want to save the ridge coefficients form the bestlambda at 1 std.
+```{r}
+ridge_fit <- glmnet(x,y, alpha = 0, lambda = bestlamda)
+ridge.coef = predict(ridge_fit, type = "coefficients", s = bestlamda)[1:9,]
+```
+Here are the the coefficients for the ridge regression using the lambda we saved that was 1 std dev away form the min lambda.
+```{r}
+ridge.coef
+```
+Now we can plot residuals of our ridge regression.
+```{r}
+plotres(ridge_fit, which = 3:4, w1.xvar='norm', predict.s = bestlamda)
+```
+Still not the best fit for the residuals. We still see some patterns in the residuals and our qq plot is not very linear. Something is missing.
+
+# Lasso Regression
+```{r}
+lasso_fit = glmnet(x,y,alpha = 1)
+plot(lasso_fit, label = TRUE)
+```
+
+```{r}
+cv.out.lasso <- cv.glmnet(x , y , alpha = 1, nfolds = 10, lambda = lambda)
+
+plot(cv.out.lasso)
+```
+
+Now we determine the MSE for the lowest lambda, the 1se lambda, and the linear model.
+1) using the min.
+```{r}
+bestlam <- cv.out.lasso$lambda.min
+lasso.pred <- predict(cv.out.lasso, s = bestlam, newx = x)
+mean((lasso.pred - y)^2)
+```
+
+2) using the 1se lambda
+```{r}
+bestlam <- cv.out.lasso$lambda.1se
+lasso.pred <- predict(cv.out.lasso, s = bestlam, newx = x)
+mean((lasso.pred-y)^2)
+```
+
+3) using the MSE from our initial fitted lm
+```{r}
+s.pred <- predict(lm_fit, newdata = Prob1_df)
+mean((s.pred - y)^2)
+```
+now save the coefficients from the 1 standard error(deviation).
+```{r}
+lasso_fit <- glmnet(x,y,alpha=1, lambda = bestlam)
+lasso.coef <- predict(lasso_fit, type = 'coefficients' , s = bestlam)[1:9,]
+lasso.coef
+```
+
+now run diagnostic plots on the lasso regression model.
+```{r}
+plotres(lasso_fit, which = 3:4, w1.xvar='norm', predict.s = bestlam)
+```
+
+#comparrison
+now we compare the coefficients from the 3 models.
+```{r}
+coef = data.table(ols = ols.coef,
+                  ridge = ridge.coef,
+                  lasso = lasso.coef)
+coef[,feature:= names(lasso.coef)]
+coef
+```

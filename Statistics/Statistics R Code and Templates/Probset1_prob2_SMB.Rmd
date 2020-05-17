@@ -1,0 +1,107 @@
+---
+title: 'Prob Set 1 Problem # 2'
+author: "Steven M. Barnard"
+date: "September 9, 2018"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+
+## Loading data
+Loading in the data set and running the initial structure and summary.
+```{r load_data}
+Prob1_df <- read.xlsx(xlsxFile = 'linear_sample.xlsx')
+```
+From the prior model, we already have reviewed the summary and structure of the data as well as the pairs plots.
+
+We transform X4 due to the non-linear relatiopnship of X4 to get the best fit. We also include the squares of the other variables to get a more comprehensive view and to account for any other non-linear relationships.
+```{r}
+Prob1_df <- mutate(Prob1_df, X12 = X1*X1)
+Prob1_df <- mutate(Prob1_df, X22 = X2*X2)
+Prob1_df <- mutate(Prob1_df, X32 = X3*X3)
+Prob1_df <- mutate(Prob1_df, X42 = X4*X4)
+Prob1_df <- mutate(Prob1_df, X52 = X5*X5)
+Prob1_df <- mutate(Prob1_df, X62 = X6*X6)
+Prob1_df <- mutate(Prob1_df, X72 = X7*X7)
+Prob1_df <- mutate(Prob1_df, X82 = X8*X8)
+Prob1_df <- mutate(Prob1_df, X92 = X9*X9)
+```
+
+# Fit the data to a ridge regression.
+
+glmnet needs x matrix and y vector.
+```{r}
+x <- model.matrix(Y ~ ., Prob1_df)[,-1]
+
+y <- Prob1_df$Y
+```
+
+lambda tuning parameter
+```{r}
+lambda <- 10^seq(10, -5, length = 120)
+```
+
+Ridge regression
+```{r}
+ridge_fit = glmnet(x,y,alpha=0)
+plot(ridge_fit, label = TRUE)
+```
+
+# cross validation
+CV to select the optimal lambda. Value of 0 for lambda meanas we put all the weight int he L2 norm (ridge). A value of 1 means we put all the weight in the L1 Norm (lasso).
+```{r}
+cv.out.ridge <- cv.glmnet(x , y , alpha = 0, nfolds = 10, lambda = lambda)
+
+plot(cv.out.ridge)
+```
+
+Using min lambda to determine the avg sqrd error
+```{r}
+bestlamda <- cv.out.ridge$lambda.min
+ridge.pred <- predict(cv.out.ridge, s = bestlamda, newx = x)
+mean((ridge.pred - y)^2)
+```
+Now we update our best lambda witht he lambda 1 standard deviation away.
+```{r}
+bestlamda <- cv.out.ridge$lambda.1se
+ridge.pred <- predict(cv.out.ridge, s = bestlamda, newx = x)
+mean((ridge.pred - y)^2)
+```
+Avg Sqrd error from the linear model is ~32.44. The lm MSE is smaller than the ridge regression MSE.
+
+Now we want to save the ridge coefficients form the bestlambda at 1 std.
+```{r}
+ridge_fit <- glmnet(x,y, alpha = 0, lambda = bestlamda)
+ridge.coef = predict(ridge_fit, type = "coefficients", s = bestlamda)[1:18,]
+```
+Here are the the coefficients for the ridge regression using the lambda we saved that was 1 std dev away form the min lambda.
+```{r}
+ridge.coef
+```
+
+Now we can plot residuals of our ridge regression.
+```{r}
+plotres(ridge_fit, which = 3:4, w1.xvar='norm', predict.s = bestlamda)
+```

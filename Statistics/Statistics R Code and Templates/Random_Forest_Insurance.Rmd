@@ -1,0 +1,177 @@
+---
+title: "Random Forest (and Bagging) Model for Insurance"
+author: "Fallaw Sowell"
+date: "Sept 8, 2018"
+output:
+  pdf_document: null
+  number_sections: yes
+  html_document:
+    df_print: paged
+  toc: yes
+  toc_depth: 4
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents 
+\newpage
+
+## Random Forest Example 
+
+This file was created with R markdown and Knit.  This demonstrates how to read in a data file, obtain summary statistics, run a regression tree model and finally report summary and diagnostic plots.    
+
+### Load the needed libraries
+
+```{r load libraries, message=FALSE, warning=FALSE}
+
+rm(list=ls())
+
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+
+if (!require('DiagrammeR')) install.packages('DiagrammeR')
+library('DiagrammeR')
+
+if (!require('randomForest')) install.packages('randomForest')
+library('randomForest')
+
+```
+
+### Load the data into R
+
+First, read the data from the excel file and save as a data.frame.   This excel file needs to be in the R working directory.   Alternatively, you would need to include the path the excel file.  
+
+This data is from an insurance company that is trying to understand why different charges occur for different customers.   We have the annual charges for the policy.  We have the sex, age, BMI, smoking status, and region of residence for the person who owns the policy.  We also have the number of children covered by the policy.   
+
+```{r Read the data, echo=TRUE }
+Insurance_df <- read.xlsx(xlsxFile = "Insurance.xlsx")
+```
+
+###  Get familiar with your data, variables, size, etc. 
+
+It is good practice to review the data by looking at its structure.  
+
+```{r Look at the structure of the data.frame}
+#str(Insurance_df)
+```
+
+###  Transform the data as needed
+
+Note that the sex, smoker, and regions variables are listed as characters variables.  For us to use them in our analysis we need to convert them to factor variables. 
+
+```{r converte character variables to factors}
+Insurance_df$sex = as.factor(Insurance_df$sex)
+Insurance_df$smoker = as.factor(Insurance_df$smoker)
+Insurance_df$region = as.factor(Insurance_df$region)
+
+
+#Insurance_df <- filter(Insurance_df, age > 2.5 + charges/300 )
+
+# Insurance_df <- filter(Insurance_df, age < -120 + charges / 200 )
+
+Insurance_df <-mutate(Insurance_df,charges = log(charges)) 
+Insurance_df <-mutate(Insurance_df, age2 = age*age) 
+```
+
+### Learn about the data set with Summary statistics and plots
+
+Get familiar with the data. Look at some summary statistics for the variables.
+
+```{r summary statistics}
+#summary(Insurance_df)
+```
+
+We are interested in the relationships in the entire data set.  A nice function that achieve this is "GGally::ggpairs" from the GGally and ggplot2 packages. 
+
+```{r GGally_ggpairs, message=FALSE, warning=FALSE}
+#GGally::ggpairs(Insurance_df)
+```
+
+### Fit a Regression tree model to explain the annual charges
+
+
+The function model.matrix creates the X matrix from the data frame.
+For this data set the most important issue is how to model the factors.
+These are converted to a set of dummy variable and one is dropped to 
+avoid collinearity with the intercept.
+
+```{r data_to_matrix}
+x <- model.matrix(charges~., Insurance_df)[,-1]
+
+y <- Insurance_df$charges
+```
+
+Now fit the Random Forest model using the xgboost function. 
+```{r fit_random_forest_model}
+
+Insurance_random_forest <- randomForest(x = x, y = y, importance=TRUE)
+
+Insurance_random_forest
+
+round(importance(Insurance_random_forest), 2)
+```
+
+
+
+## Diagnostics to judge the model's fit
+
+
+See which covariates are most important.
+
+```{r importance_random_forest}
+
+varImpPlot(Insurance_random_forest,main="Most Important Variable for Charges")
+```
+
+
+
+Now consider the predicted values and the empirical MSE. 
+```{r Calculate_MSE}
+Random_Forest.pred <- predict(Insurance_random_forest, newdata = x)
+mean((Random_Forest.pred - y)^2)
+```
+
+
+Now consider how the error changes with the number of covariates in the model. This is one of the tuning parameters for a Random Forests.  The other tuning parameter is the number of trees.  Consider following this logic and selecting the best number of trees, use a grid with increments of 200 from 400 to 3000. 
+
+```{r  number_or_regressors}
+
+test.err=double(9)
+
+#mtry is no of Variables randomly chosen at each split
+
+for(mtry in 1:9) 
+{
+  rf=randomForest(x = x, y = y, mtry=mtry,ntree=500) 
+
+  pred<-predict(rf, newx=x) #Predictions on Test Set for each Tree
+  test.err[mtry]=  mean( (y - pred)^2) #Mean Squared Test Error
+  cat(mtry," ") #printing the output to the console
+}
+
+test.err
+
+matplot(1:mtry, test.err, pch=19 , col="blue",type="b",ylab="Mean Squared Error",xlab="Number of Predictors Considered at each Split")
+legend("topright",legend=c("Test Error"),pch=19, col=c("blue"))
+```
+Note that the last model estimated with mtry = 9 is simply bagging. 
+
+
+There is a function that automatrically selects the best number of covariates.
+The tuneRF is part of the RandomForest libarary.  
+
+```{r best_mtry_automatic}
+
+# Algorithm Tune (tuneRF)
+set.seed(589)
+bestmtry <- tuneRF(x, y, stepFactor=1.5, improve=1e-5, ntree=500)
+print(bestmtry)
+```

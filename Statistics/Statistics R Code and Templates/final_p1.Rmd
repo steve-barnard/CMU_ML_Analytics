@@ -1,0 +1,158 @@
+---
+title: "Final_prob_1"
+author: "Steven M. Barnard"
+date: "October 13, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Load Libraries we may use
+```{r libs, include=FALSE}
+if (!require('openxlsx')) install.packages('openxlsx')
+library('openxlsx')
+if (!require('ggplot2')) install.packages('ggplot2')
+library('ggplot2')
+if (!require('dplyr')) install.packages('dplyr')
+library('dplyr')
+if (!require('GGally')) install.packages('GGally')
+library('GGally')
+if (!require('plotmo')) install.packages('plotmo')
+library('plotmo')
+if (!require('data.table')) install.packages('data.table')
+library('data.table')
+if (!require('glmnet')) install.packages('glmnet')
+library('glmnet')
+```
+
+## Final Problem 1 - Building Data
+First we upload the dataset we will be using and assign it to a data frame named 'df_bld_data' and set the start row to 2 so the data reads in more convineintly. V-1 through V-8 are project specific, V-11 through V-29 and the continued lag variations are the economic variables, and V-10 is cost. * Note there is no column V-9 in our data frame(actual sales price).
+
+Our variable of interest is V-10 = construction cost.
+```{r load in data set}
+df_bld_data <- read.xlsx(xlsxFile = 'Building_Data.xlsx', startRow = 2)
+```
+
+Next we want to review the data, data types, and structure to get a better grasp of our dataset.
+```{r correcting data frame}
+head(df_bld_data)
+```
+
+Variables were repeated causing errors when attempting to create the glm matricies. I spent a good 2 hours attempting to get the correct for loops to iterate over the column names to add prefix or suffix usint the paste function and had no success. I then manually went into the spreadsheet and updated hte column names so that I could continue with the final. I understand there are better ways to do this.
+
+```{r df_info}
+summary(df_bld_data) # summary
+```
+
+All are numeric and are candidates for a LASSO regression.
+
+The reason I feel a lasso selection would be favorable, is that here we want to not only simplify the model that will be used through feature selection. A ridge regression, while it would tend to normalize the data, will not make the model more simple through elimination of insignificant variables/features, and I don't personally feel there is enough data present to be confident in using an elestic net method for a best fit.
+
+# Start of the Lasso
+
+We may mutate the data further, however with the lag periods I am confident a decent model can be fit, since the lag periods are in a sense mutated data on the initial economic variables.
+
+We will be using glmnet for the lasso regression. The glmnet package needs x matrix and y vector.
+```{r}
+x <- model.matrix(v10 ~ ., df_bld_data)[,-1]
+
+y <- df_bld_data$v10
+```
+
+lambda tuning parameter
+```{r}
+lambda <- 10^seq(10, -5, length = 120)
+```
+
+```{r}
+lasso_fit = glmnet(x,y,alpha = 1)
+plot(lasso_fit, label = TRUE)
+```
+
+
+Cross validate to determine optimal lambda.
+```{r}
+cv.out.lasso <- cv.glmnet(x , y , alpha = 1, nfolds = 5, lambda = lambda)
+
+plot(cv.out.lasso)
+```
+
+Now we can set our lambda to the minimum to optimize our results.
+```{r}
+bestlam <- cv.out.lasso$lambda.min
+lasso.pred <- predict(cv.out.lasso, s = bestlam, newx = x)
+mean((lasso.pred - y)^2)
+```
+
+We can now fit the lasso to the features and complete feature selection.
+```{r}
+lasso_fit <- glmnet(x,y,alpha=1, lambda = bestlam)
+lasso.coef <- predict(lasso_fit, type = 'coefficients' , s = bestlam)[]
+lasso.coef
+```
+The variables that should be included in the model are as follows:
+(Intercept) -5.520700e+01
+v1          -5.806016e-01
+v3          -4.062594e-03
+v4           1.246124e-02
+v5           1.298471e+00
+v6          -8.291403e-03
+v7           1.362887e+01
+v14          4.076753e+00
+v18          6.574413e-02
+v20         -4.882351e+00
+v21          1.952180e-02
+v23          1.988720e-03
+v24         -1.441527e-03
+1v14      -2.864178e+00
+1v16      -1.812465e-03
+1v19       1.933112e-04
+1v20       5.374160e+00
+1v27      -4.746934e-03
+1v28       2.157620e-04
+2v14       5.734492e+00
+2v16      -4.874334e-03
+2v19       1.038508e-04
+3v11       1.420358e-03
+3v13      -1.732565e-01
+3v14      -1.238810e+00
+3v16      -3.609856e-04
+3v19       6.107469e-04
+3v21       6.092988e-03
+3v23       3.046498e-03
+4v11       1.237291e-03
+4v17      -8.963700e-02
+4v18      -3.879221e-02
+4v20      -2.056917e+00
+4v21      -5.851541e-05
+4v22      -3.063182e-02
+4v23       6.784674e-03
+4v24      -9.440241e-04
+4v27       5.949709e-04
+
+
+Diagnostic plots:
+```{r}
+plotres(lasso_fit, which = 3:4, w1.xvar='norm', predict.s = bestlam)
+```
+The residuuals look pretty good and while the QQ plot is off at the tails the body tents to stay near the AB line.
+
+I will confirm my findings with a linear regression using the selected features and drop insignificant figures to obtain the simplest and most interpretable model.
+
+```{r}
+lm_fit <- lm(v10 ~ v4+v5+v6+v7+v13+v14+v16+v18+v19+v20+v21+v22+v23+v27+`1v20`+`1v27`+`2v16`+`3v13`+`4v22`+`4v23`+`4v27`, df_bld_data)
+summary(lm_fit)
+```
+I decieded to leave the initial economic variables due to some of the lagging variables having significance, these lagging variables are essentially a mutation/transformation on the current varables and as such the current values have significance in that they will become significant in future lag periods and help to explain the model.
+
+```{r}
+resid_qqplot <- ggplot( data = lm_fit, aes(sample = .stdresid)) + stat_qq() + geom_abline()
+resid_qqplot
+```
+
+This updated QQ plot with teh customized linear model is a better fit and I am happy with the linear model. The lasso regression was used to isolate features to use for the linear model.
+
+This indicates that these variables and corresponding lag periods affect cost by a factor as outlined in their coefficient. i.e.( v14, the total area of the floors for the building constructed affects cost by a factor of $7.5 per meter squared according to this model) other variables affect the cost in similar ways.

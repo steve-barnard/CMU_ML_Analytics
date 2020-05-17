@@ -1,0 +1,129 @@
+---
+title: "Final_P3"
+author: "Steven M. Barnard"
+date: "October 13, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Load Packages
+
+Load Possible Packages and Set Options
+
+```{r packages}
+rm(list=ls())
+
+if (!require('openxlsx'))
+  install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('dplyr'))
+  install.packages('dplyr')
+library('dplyr')
+
+if (!require('ggplot2'))
+  install.packages('ggplot2')
+library('ggplot2')
+
+if (!require('glmnet'))
+  install.packages('glmnet')
+library('glmnet')
+
+if (!require('data.table'))
+  install.packages('data.table')
+library('data.table')
+
+if (!require('plotmo'))
+  install.packages('plotmo')
+library('plotmo')
+
+if (!require('ROCR'))
+  install.packages('ROCR')
+library('ROCR')
+
+if (!require('DiagrammeR')) install.packages('DiagrammeR')
+library('DiagrammeR')
+
+if (!require('randomForest')) install.packages('randomForest')
+library('randomForest')
+
+```
+
+## Final Problem 3 - Test Scores
+
+```{r read_data}
+school_df <- read.xlsx(xlsxFile = "School_scores.xlsx")
+summary(school_df)
+```
+We have a good mix of characters and  numeric data (great for a random forest). Since we are trying to explain the test scores we can use a random forest and get a measure of feature importance which can help us identify the important features our of the 30 covariates provided.
+
+First we conver to a matrix to allow us to model off of the data.
+```{r convert to matrix}
+x <- model.matrix(G3~., school_df)[,-1]
+
+y <- school_df$G3
+```
+
+now we can fith teh random forrest model using xgboost
+```{r fit_random_forest_model}
+
+school_rf <- randomForest(x = x, y = y, importance=TRUE)
+
+school_rf 
+
+round(importance(school_rf), 2)
+```
+
+Now we can get a better visual on the above listed importances outpout by our model.
+See which covariates are most important.
+
+```{r importance_rf}
+
+varImpPlot(school_rf,main="Most Important Variable for Test Scores")
+
+```
+
+```{r Calculate_MSE}
+Random_Forest.pred <- predict(school_rf, newdata = x)
+mean((Random_Forest.pred - y)^2)
+```
+
+```{r  number_or_regressors}
+
+test.err=double(15)
+
+for(mtry in 1:15) 
+{
+  rf=randomForest(x = x, y = y, mtry=mtry,ntree=1000) 
+
+  pred<-predict(rf, newx=x) 
+  test.err[mtry]=  mean( (y - pred)^2) 
+  cat(mtry," ") 
+}
+
+test.err
+
+matplot(1:mtry, test.err, pch=19 , col="blue",type="b",ylab="Mean Squared Error",xlab="Number of Predictors Considered at each Split")
+legend("topright",legend=c("Test Error"),pch=19, col=c("blue"))
+```
+It appears that for the RF model, either 9 or 13 regressors would be ideal.
+
+```{r best_mtry_automatic}
+bestmtry <- tuneRF(x, y, stepFactor=1.5, improve=1e-5, ntree=1000)
+print(bestmtry)
+```
+
+Top five most important features to predict test scores are:
+1) Past Failures: failures (922.11)
+2) Absences (378.71)
+3) Seeking higher education: higheryes (350.30)
+4) Students' school: schoolMS  (296.41)
+5) Going out with freinds: goout (291.17)
+
+Overall, the predicted importance of factors that would affect test scores do align with common intuition and accepted practices to get higher test scores. Lower prior failure rates, more classes attended, the desire to seek higher education, school quality, and going out with friends should affect test scores.
+
+** other variables are listed as important, I chose to only highlight the top 5. You could also highlight the bottom five as well.

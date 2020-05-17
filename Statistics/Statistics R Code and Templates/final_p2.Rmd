@@ -1,0 +1,99 @@
+---
+title: "Final_prob2"
+author: "Steven M. Barnard"
+date: "October 13, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+```
+
+## Load Packages
+
+Load Packages and Set Options
+
+```{r packages}
+rm(list=ls())
+
+if (!require('openxlsx'))
+  install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('dplyr'))
+  install.packages('dplyr')
+library('dplyr')
+
+if (!require('ggplot2'))
+  install.packages('ggplot2')
+library('ggplot2')
+
+if (!require('glmnet'))
+  install.packages('glmnet')
+library('glmnet')
+
+if (!require('data.table'))
+  install.packages('data.table')
+library('data.table')
+
+if (!require('plotmo'))
+  install.packages('plotmo')
+library('plotmo')
+
+if (!require('ROCR'))
+  install.packages('ROCR')
+library('ROCR')
+```
+
+## Final Problem 2 - Fertility
+
+```{r read_data}
+fert_df <- read.csv("Fertility.csv")
+summary(fert_df)
+pairs(fert_df)
+```
+```{r}
+logit_fit = glm(diag ~ ., fert_df, family = 'binomial')
+```
+
+```{r summary of model}
+summary(logit_fit)
+```
+The following covariates are known to have a correlation with male fertility:
+Age per ncbi/nih records is a factor in male fertility.
+Temperature also affects fertility, therefore seasonality should be considered due to ambient temperature and clothing worn.
+Childhood diseases should be included as mumps has been known to cause infertility.
+Trauma should be included along with surgical intervention as these are significant events in which individuals may or may have not had medications given to them, decreased oxegen supply or many more other events occur simultaneously which could in turn lead to changes in fertility. High fevers should be inculded for the same reasons as trauma and surgery.
+Medical research shows that smoking and alcohol consumption alters sperm fertility and as such should be included.
+Research has also shown that prolonged sitting increases local temperature near the sperm and can lead to infertility, as such, hours sitting should be able to also explain varaitions in fertility.
+
+```{r save coefficients}
+logit_coef = logit_fit$coefficients
+```
+
+```{r conf matrix}
+predict <- predict(logit_fit, type = 'response')
+
+table(fert_df$diag, predict > 0.35)
+```
+I've chosen to alter the cutoff decision point to 0.35 to maximize the total outcome for our predictions even though 0.5 is generally the default cutoff.
+
+```{r ROC}
+ROCpred <- prediction(predict,fert_df$diag)
+ROCperf <- performance(ROCpred, 'tpr','fpr')
+plot(ROCperf, colorize = TRUE)
+```
+
+```{r accuracy}
+true_pos <- 85
+true_neg <- 5
+total <- 100
+accuracy <- ((true_pos+true_neg)/total)
+
+print(accuracy)
+```
+
+With this cutoff value we correctly predict that males have normal or altered sperm behavior 90% of the time and 10% of the time we incorrectly classify them.
+
+To improve this model, I would increase the sample size to get a better draw for the logit.

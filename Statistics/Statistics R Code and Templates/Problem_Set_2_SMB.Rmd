@@ -1,0 +1,195 @@
+---
+title: "Stats Prob set 2"
+author: "Steven M. Barnard"
+date: "September 23, 2018"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+## Problem Set 2 - Maximum Likelihood Estimation
+
+```{r cleanup}
+rm(list = ls())
+# command to clean workspace out
+```
+
+## Load Packages
+
+Load Packages and Set Options
+
+```{r packages}
+if (!require('openxlsx'))
+  install.packages('openxlsx')
+library('openxlsx')
+
+if (!require('ggplot2'))
+  install.packages('ggplot2')
+library('ggplot2')
+```
+
+## Load Dataset
+
+```{r load_data}
+gamma_df <-
+  read.xlsx(xlsxFile = "MLE_data_set_gamma.xlsx")
+X <- as.matrix(gamma_df[1])
+N <- length(X)
+summary(gamma_df)
+```
+
+```{r summary_and_plot, message=FALSE, warning=FALSE}
+g <- ggplot(gamma_df, aes(x = X)) + geom_histogram()
+g
+```
+There appears to be some heteroskedasticity towards the mean with a large right sided tail. This is indicative of a gamma distribution.
+
+## Analytical solutions
+I have referenced the write-up provided by professor Sowell. My user defined functions should emulate the analytical solutions derived from the write-up.
+
+## User Defined Functions
+
+User defined functions to evaluate the gamma function.
+
+```{r gamma_log_likelihood}
+gamma_log_like <- function(the_parameters, the_data) {
+  # Computes the log-likelihood function for a normal distribution
+  #
+  # Args:
+  #   the_parameters: First the shape and then the scale.
+  #   the_data: A column matrix of the data.
+  #
+  # Returns:
+  #   The log-likelihood function evaluated at the parameters.
+  alpha <- the_parameters[1] # 1st parameter - shape
+  theta  <- the_parameters[2] # 2nd parameter - scale
+  x <- the_data
+  N <- length(x)
+  
+  log_like <- ((alpha-1) * sum(log(x)) - (1/theta) * sum(x) - alpha*N*log(theta)
+               - N * lgamma(alpha))
+  return(-log_like)
+}
+```
+
+Next is the user defined function that calculates the second derivative of the 
+gamma log-likelihood function.
+
+The Trigamma function should return the 2x2 matrix; the covariance matrix for the two estimates.
+
+```{r Trigamma}
+Trigamma_log_like <- function(the_parameters, the_data) {
+  # Computes the second derivative of a gamma log-likelihood function
+  #
+  # Args:
+  #   the_parameters: First the shape and then the scale.
+  #   the_data: A column matrix of the data.
+  #
+  # Returns:
+  #   The 2x2 matrix of second derivatives evaluated at the given parameters.
+  alpha <- the_parameters[1]
+  theta  <- the_parameters[2]
+  x <- the_data
+  N <- length(x)
+  d2_alpha <- -N * trigamma(alpha)
+  d2_alpha_theta <- -N/theta
+  d2_theta <- (-2/(theta * theta * theta)) * sum(x) + (alpha*N/(theta * theta)) 
+  H <- matrix(c(d2_alpha,d2_alpha_theta ,d2_alpha_theta ,d2_theta ), ncol = 2)
+  return(H)
+}
+```
+
+
+## Estimation and Confidence Intervals
+
+Use the R function optim() to minimize the log-likelihood function.  We must set the start values for the numerical hill-climber.  
+
+```{r Maximize_the_log_like}
+start_values = c(1.5, 1.8)
+
+optout_normal <-
+  optim(
+    start_values,
+    gamma_log_like,
+    control = list(
+      maxit = 500,
+      abstol = .00000001,
+      reltol = .00000001
+    ),
+    the_data = X
+  )
+optout_normal
+```
+The returned parameters are an alpha of ~1.87 and a theta of ~3.14. These our our maximum likelihood estimates.
+
+The value of the log-likelihood function is ~668.81.
+
+
+```{r Calculate_Covarinace}
+the_covariance <-
+  solve(-Trigamma_log_like(optout_normal$par , X) / N) / N
+the_covariance
+```
+The estimate for the covariance of the shape and scale are returned as a 2x2 matrix.
+
+
+Now we can calculate and print the 95% confidence intervals for the parameters.  
+
+```{r confidence_interval for shape/alpha}
+print(c(
+  optout_normal$par[1] - 2 * sqrt(the_covariance[1, 1]),
+  optout_normal$par[1] + 2 * sqrt(the_covariance[1, 1])
+))
+```
+The 95% confidence interval for the alpha is ~[1.56, 2.18].
+```{r confidence_interval for scale/theta}
+print(c(
+  optout_normal$par[2] - 2 * sqrt(the_covariance[2, 2]),
+  optout_normal$par[2] + 2 * sqrt(the_covariance[2, 2])
+))
+```
+The 95% confidence interval for the theta is ~[2.55, 3.74].
+
+## Compare Analytical and Numerical Second Derivatives
+
+I ran the Trigamma function then created a function to pass delta values to the numerical derivative example and stored them in a new df.
+
+```{r 2nd deriv+Numerical_Second_derivative}
+
+Trigamma_log_like(optout_normal$par , X)
+
+
+Num_2nd <- function(delta_value) {
+  # Computes the second derivative numerically with respect to alpha over the delta values.
+  Num_T <- -(
+  gamma_log_like(optout_normal$par - c(delta_value, 0), X)
+  - 2 * gamma_log_like(optout_normal$par, X)
+  + gamma_log_like(optout_normal$par + c(delta_value, 0), X)
+) / (delta_value * delta_value)
+  return(Num_T)
+}
+
+Yt <- c(Num_2nd(1.0e-1),Num_2nd(1.0e-2),Num_2nd(1.0e-3),Num_2nd(1.0e-4),Num_2nd(1.0e-5),Num_2nd(1.0e-6))
+
+Xt<- c(1.0e-1,1.0e-2,1.0e-3,1.0e-4,1.0e-5,1.0e-6)
+
+#Yt <- c(Num_2nd(1.0e-1),Num_2nd(1.0e-2),Num_2nd(1.0e-3),Num_2nd(1.0e-4),Num_2nd(1.0e-5),Num_2nd(1.0e-6),Num_2nd(1.0e-7),Num_2nd(1.0e-8),Num_2nd(1.0e-9),Num_2nd(1.0e-10),Num_2nd(1.0e-11),Num_2nd(1.0e-12))
+
+#Xt<- c(1.0e-1,1.0e-2,1.0e-3,1.0e-4,1.0e-5,1.0e-6,1.0e-7,1.0e-8,1.0e-9,1.0e-10,1.0e-11,1.0e-12)
+
+# I chose not to include all of the 12 entries so that the data could be better visualized in the plot, so that the 2nd derivative can be seen appraoching -175.50567 rather than having a visual that would have been less informative.
+
+NumT_df <- data.frame(x=Xt,y=Yt)
+
+NumT_df
+```
+
+```{r NumT_df plot}
+
+ggplot(data = NumT_df) +
+  geom_point(mapping = aes(log(x), y))
+```
+
+The graphical representation shows the max value approaching ~ -175.5057 before trailing off again at the peripheral x-values. This is nearly identical to our numerical estimate of the second derivative.
